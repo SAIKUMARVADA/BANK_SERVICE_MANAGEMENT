@@ -8,4 +8,4 @@ app.include_router(router)
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Bank Service PoC (MongoDB)"}
+    return {"message": "Welcome to Bank Service Management Services !"}
