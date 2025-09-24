@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 # ------------------ Account ------------------
 
@@ -7,6 +8,10 @@ class CreateAccountRequest(BaseModel):
     account_number: str
     name: str
     pin: str
+    balance: float = 0.0   # default balance is 0.0
+    created_at: datetime = datetime.utcnow()  # auto timestamp
+    status: str = "active"  # default status
+    kyc: Optional[str] = None  # optional field
 
 class AccountRequest(BaseModel):
     account_number: str
@@ -24,6 +29,10 @@ class KYCUpdateRequest(BaseModel):
     aadhaar: str
     pan: str
     address: str
+
+class close_account_service(BaseModel):
+    account_number: str
+    pin: str
 
 # ------------------ Transactions ------------------
 
@@ -43,24 +52,24 @@ class TransferRequest(BaseModel):
     pin: str
     amount: float
 
-from pydantic import BaseModel, Field
+
 
 #------------Loan Application Request-------------------
 
 class LoanRequest(BaseModel):
-    account_number: str = Field(..., example="12345")
-    pin: str = Field(..., example="1111")
-    loan_amount: float = Field(..., gt=0, example=5000)
-    interest_rate: float = Field(..., gt=0, example=10)  # percentage
-    tenure_months: int = Field(..., gt=0, example=12)
+    account_number: str 
+    pin: str 
+    loan_amount: float 
+    interest_rate: float # percentage
+    tenure_months: int 
 
 
 # Loan Repayment Request
 class LoanRepayRequest(BaseModel):
-    account_number: str = Field(..., example="12345")
-    loan_id: str = Field(..., example="265hsyqtwu826")
-    pin: str = Field(..., example="1111")
-    amount: float = Field(..., gt=0, example=1000)
+    account_number: str 
+    loan_id: str 
+    pin: str 
+    amount: float
 
 
 
