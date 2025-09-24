@@ -90,7 +90,6 @@ def transfer_service(request: TransferRequest):
     log_transaction({
         "from_account_number": request.from_account,
         "to_account_number": request.to_account,
-        "pin": request.pin,
         "type": "transfer",
         "amount": request.amount
     })
@@ -110,9 +109,6 @@ def change_pin_service(request: ChangePinRequest):
         raise HTTPException(status_code=404, detail="Invalid account or old PIN")
     
     accounts_collection.update_one({"_id": acc["_id"]}, {"$set": {"pin": request.new_pin}})
-
-    accounts_collection.insert_one(change_pin_service)
-
     return {"message": "PIN updated successfully"}
 
 
@@ -129,10 +125,19 @@ def kyc_update_service(request: KYCUpdateRequest):
             "updated_at": datetime.utcnow()
         }
     }})
-    accounts_collection.insert_one(kyc_update_service)
-    
     return {"message": "KYC updated successfully"}
 
+
+def close_account_service(request: AccountRequest):
+    acc = accounts_collection.find_one({"account_number": request.account_number, "pin": request.pin})
+    if not acc:
+        raise HTTPException(status_code=400, detail="Invalid account or PIN")
+
+    accounts_collection.update_one(
+        {"account_number": request.account_number},
+        {"$set": {"status": "closed"}}
+    )
+    return {"message": f"Account {request.account_number} closed successfully"}
 
 # ----------------- Loans -----------------
 def apply_loan_service(request: LoanRequest):
@@ -146,26 +151,31 @@ def apply_loan_service(request: LoanRequest):
         "pin": request.pin,
         "interest_rate": request.interest_rate,
         "tenure_months": request.tenure_months,
-
+        "remaining_due": request.loan_amount * (1 + request.interest_rate / 100),
+        "status": "active",
+        "created_at": datetime.utcnow()
     }
     result = loans_collection.insert_one(loan)
     return {"message": "Loan applied successfully", "loan_id": str(result.inserted_id)}
 
 
 def repay_loan_service(request: LoanRepayRequest):
-    acc = accounts_collection.find_one({"account_number": request.account_number, "pin": request.pin})
-    if not acc:
-        raise HTTPException(status_code=404, detail="Invalid account or PIN")
+    loan = loans_collection.find_one({"account_number": request.account_number, "status": "active"})
+    if not loan:
+        raise HTTPException(status_code=404, detail="No active loan found")
     
-    repay = {
-            "account_number": request.account_number,
-            "loan_id": request.loan_id,
-            "pin": request.pin,
-            "amount": request.amount
-    }
-    result = loans_collection.insert_one(repay)
-    return {"message": "Loan repayment successful", }
+    if request.amount > loan["remaining_due"]:
+        raise HTTPException(status_code=400, detail="Repayment amount exceeds remaining due")
 
+    new_due = loan["remaining_due"] - request.amount
+    loans_collection.update_one({"_id": loan["_id"]}, {"$set": {"remaining_due": new_due}})
+    
+    log_transaction({
+        "account_number": request.account_number,
+        "type": "loan_repayment",
+        "amount": request.amount
+    })
+    return {"message": "Loan repayment successful", "remaining_due": new_due}
 
 
 def get_loans_service(account_number: str):
